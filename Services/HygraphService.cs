@@ -8,6 +8,7 @@ using System.Text.Json;
 using global::GraphQL;
 using global::GraphQL.Client.Http;
 using global::GraphQL.Client.Serializer.SystemTextJson;
+using Inputs;
 using Models;
 using Newtonsoft.Json.Linq;
 using Utils;
@@ -32,6 +33,8 @@ public class HygraphService : IStorageService
                         id
                         title
                         content
+                        stage
+                        tags
                         image {{
                           id
                           url
@@ -55,7 +58,7 @@ public class HygraphService : IStorageService
             throw new Exception("Blog post not found");
         }
 
-        if (response.Errors?.Length != 0)
+        if (response.Errors != null && response.Errors?.Length != 0)
         {
             throw new Exception(response.Errors?[0].Message);
         }
@@ -63,45 +66,73 @@ public class HygraphService : IStorageService
         return blogPost;
     }
     
-    public async Task<List<BlogPost>> ListBlogPostsAsync()
+    public async Task<BlogPostConnection> ListBlogPostsAsync(BlogPostsConnectionInput? input)
     {
         var client = new GraphQLHttpClient(new Uri(_settings.HygraphContentApiUrl), new SystemTextJsonSerializer());
+
+        string? arguments = null;
+        if (input != null)
+        {
+            arguments = "(";
+            if (input.After != null) arguments = string.Concat(arguments, $"after: \"{input.After}\"");
+            if (input.Before != null) arguments = string.Concat(arguments, $" before: \"{input.Before}\"");
+            if (input.First != null) arguments = string.Concat(arguments, $" first: {input.First}");
+            if (input.Last != null) arguments = string.Concat(arguments, $" last: {input.Last}");
+            if (input.OrderBy != null) arguments = string.Concat(arguments, $" orderBt: {input.OrderBy}");
+            if (input.Stage != null) arguments = string.Concat(arguments, $" stage: {input.Stage}");
+            if (input.Tags != null) arguments = string.Concat(arguments, $" where:{{tags_contains_all: [\"{string.Join("\", \"", input.Tags)}\"]}}");
+            arguments = string.Concat(arguments, ")");
+        }
+        
         var request = new GraphQLRequest
         {
             Query = $@"
                     query {{
-                      blogPosts(stage: DRAFT) {{
-                        id
-                        title
-                        content
-                        stage
-                        image {{
-                          id
-                          url
-                          mimeType
-                          size
-                          width
-                          height
-                          fileName
+                      blogPostsConnection{arguments ?? null} {{
+                        edges {{
+                            node {{
+                                id
+                                title
+                                content
+                                stage
+                                tags
+                                image {{
+                                  id
+                                  url
+                                  mimeType
+                                  size
+                                  width
+                                  height
+                                  fileName
+                                }}
+                              }}
+                            }}
+                        pageInfo{{
+                            hasNextPage
+                            hasPreviousPage
+                            startCursor
+                            endCursor
+                            pageSize
                         }}
-                      }}
-                    }}"
+                    }}
+            }}"
         };
-
+        
         client.HttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _settings.HygraphSecret);
 
         var response = await client.SendQueryAsync<JsonElement>(request);
 
-        if (response.Errors?.Length != 0)
+        if (response.Errors != null && response.Errors?.Length != 0)
+
         {
             throw new Exception(response.Errors?[0].Message);
         }
 
-        var blogPosts = JsonUtil.Deserialize<List<BlogPost>>(response.Data.ToString(), ignoreRoot: true);
+        var blogPosts = JsonUtil.Deserialize<BlogPostConnection>(response.Data.ToString(), ignoreRoot: true);
 
-        return blogPosts ?? new List<BlogPost>();
+        return blogPosts!;
     }
-
+    
     public async Task<Asset> UploadAssetAsync(IFile file)
     {
         var client = new HttpClient();

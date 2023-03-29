@@ -1,6 +1,7 @@
 namespace Blog.Backend.GraphQL;
 
 using HotChocolate;
+using Inputs;
 using Models;
 using Services;
 
@@ -13,8 +14,8 @@ public class Query
     }
     
     [GraphQLName("blogPosts")]
-    public async Task<List<BlogPost>> ListBlogPostsAsync([Service] IStorageService storageService)
+    public async Task<BlogPostConnection> ListBlogPostsAsync([Service] IStorageService storageService, BlogPostsConnectionInput? input)
     {
-        return await storageService.ListBlogPostsAsync();
+        return await storageService.ListBlogPostsAsync(input);
     }
 }

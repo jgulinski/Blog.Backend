@@ -7,5 +7,6 @@ public class BlogPost
     public string? Title { get; set; }
     public string? Content { get; set; }
     public string? Stage { get; set; }
+    public List<String>? Tags { get; set; }
     public Asset? Image { get; set; }
 }
